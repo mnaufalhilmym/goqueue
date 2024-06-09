@@ -1,9 +1,8 @@
 package goqueue
 
 type Data struct {
-	ID   int64
-	Kind string
-	Data []byte
+	ID    int64
+	Bytes []byte
 }
 
 type QueueData struct {

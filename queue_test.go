@@ -1,6 +1,7 @@
 package goqueue_test
 
 import (
+	"encoding/json"
 	"sync"
 	"testing"
 	"time"
@@ -8,8 +9,13 @@ import (
 	queue "github.com/mnaufalhilmym/goqueue"
 )
 
+type testData struct {
+	Kind string
+	Data []byte
+}
+
 func TestInOut(t *testing.T) {
-	data := [][]any{
+	data := []testData{
 		{"test", []byte("test-data")},
 		{"test1", []byte("test-data1")},
 		{"test2", []byte("test-data2")},
@@ -25,12 +31,16 @@ func TestInOut(t *testing.T) {
 	q, cancel := queue.New()
 	defer cancel()
 
-	fs := func(data [][]any) {
+	fs := func(data []testData) {
 		for i, d := range data {
+			dd, err := json.Marshal(d)
+			if err != nil {
+				t.Error(err)
+				return
+			}
 			if err := q.In(queue.Data{
-				ID:   int64(i + 1),
-				Kind: d[0].(string),
-				Data: d[1].([]byte),
+				ID:    int64(i + 1),
+				Bytes: dd,
 			}); err != nil {
 				t.Error(err)
 				return
@@ -42,7 +52,7 @@ func TestInOut(t *testing.T) {
 	go fs(data[len(data)/2:])
 
 	resmu := new(sync.Mutex)
-	var res [][]any
+	var res []testData
 	f := func(wg *sync.WaitGroup) {
 		defer wg.Done()
 		for {
@@ -59,7 +69,12 @@ func TestInOut(t *testing.T) {
 					resmu.Unlock()
 					continue
 				}
-				res = append(res, []any{qData.Data().Kind, qData.Data().Data})
+				var data testData
+				if err := json.Unmarshal(qData.Data().Bytes, &data); err != nil {
+					t.Error(err)
+					return
+				}
+				res = append(res, data)
 				qData.Remove()
 			} else {
 				isDone = true
@@ -81,18 +96,18 @@ func TestInOut(t *testing.T) {
 	for _, r := range res {
 		idx := -1
 		for ii, d := range data {
-			if d[0].(string) == r[0].(string) {
+			if d.Kind == r.Kind {
 				idx = ii
-				if r[0].(string) != d[0].(string) {
+				if r.Kind != d.Kind {
 					t.Error("Invalid data[0]")
 					return
 				}
-				if len(r[1].([]byte)) != len(d[1].([]byte)) {
+				if len(r.Data) != len(d.Data) {
 					t.Error("Invalid data[1]")
 					return
 				}
-				for ii, rd := range r[1].([]byte) {
-					if rd != d[1].([]byte)[ii] {
+				for ii, rd := range r.Data {
+					if rd != d.Data[ii] {
 						t.Error("Invalid data[1]")
 						return
 					}

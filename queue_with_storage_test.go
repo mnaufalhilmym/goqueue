@@ -1,7 +1,9 @@
 package goqueue_test
 
 import (
+	"encoding/json"
 	"errors"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -64,7 +66,7 @@ func newSimpleStorage() simpleStorage {
 }
 
 func TestInOutWithStorage(t *testing.T) {
-	data := [][]any{
+	data := []testData{
 		{"test", []byte("test-data")},
 		{"test1", []byte("test-data1")},
 		{"test2", []byte("test-data2")},
@@ -89,10 +91,14 @@ func TestInOutWithStorage(t *testing.T) {
 		if i == 5 {
 			break
 		}
+		dd, err := json.Marshal(d)
+		if err != nil {
+			t.Error(err)
+			return
+		}
 		if _, err := storage.Insert(queue.Data{
-			ID:   int64(i + 1),
-			Kind: d[0].(string),
-			Data: d[1].([]byte),
+			ID:    int64(i + 1),
+			Bytes: dd,
 		}); err != nil {
 			t.Error(err)
 			return
@@ -106,11 +112,15 @@ func TestInOutWithStorage(t *testing.T) {
 	}
 	defer cancel()
 
-	fs := func(data [][]any) {
+	fs := func(data []testData) {
 		for _, d := range data {
+			dd, err := json.Marshal(d)
+			if err != nil {
+				t.Error(err)
+				return
+			}
 			if err := q.In(queue.Data{
-				Kind: d[0].(string),
-				Data: d[1].([]byte),
+				Bytes: dd,
 			}); err != nil {
 				t.Error(err)
 				return
@@ -122,7 +132,7 @@ func TestInOutWithStorage(t *testing.T) {
 	go fs(data[5+(len(data)-5)/2:])
 
 	resmu := new(sync.Mutex)
-	var res [][]any
+	var res []testData
 	f := func(wg *sync.WaitGroup) {
 		defer wg.Done()
 		x := 0
@@ -140,20 +150,25 @@ func TestInOutWithStorage(t *testing.T) {
 					resmu.Unlock()
 					continue
 				}
-				if qData.Data().Kind == "retry" && x == 0 {
+				var data testData
+				if err := json.Unmarshal(qData.Data().Bytes, &data); err != nil {
+					t.Error(err, string(qData.Data().Bytes))
+					os.Exit(1)
+				}
+				if data.Kind == "retry" && x == 0 {
 					qData.Cancel()
 					resmu.Unlock()
 					x++
 					continue
 				}
-				if qData.Data().Kind == "skipped" && x == 0 {
+				if data.Kind == "skipped" && x == 0 {
 					qData.Skip()
 					resmu.Unlock()
 					x++
 					continue
 				}
 				x = 0
-				res = append(res, []any{qData.Data().Kind, qData.Data().Data})
+				res = append(res, data)
 				if err := qData.Remove(); err != nil {
 					t.Error(err)
 					return
@@ -179,21 +194,21 @@ resloop:
 	for _, r := range res {
 		idx := -1
 		for ii, d := range data {
-			if d[0].(string) == "skipped" {
+			if d.Kind == "skipped" {
 				continue resloop
 			}
-			if d[0].(string) == r[0].(string) {
+			if d.Kind == r.Kind {
 				idx = ii
-				if r[0].(string) != d[0].(string) {
+				if r.Kind != d.Kind {
 					t.Error("Invalid data[0]")
 					return
 				}
-				if len(r[1].([]byte)) != len(d[1].([]byte)) {
+				if len(r.Data) != len(d.Data) {
 					t.Error("Invalid data[1]")
 					return
 				}
-				for ii, rd := range r[1].([]byte) {
-					if rd != d[1].([]byte)[ii] {
+				for ii, rd := range r.Data {
+					if rd != d.Data[ii] {
 						t.Error("Invalid data[1]")
 						return
 					}

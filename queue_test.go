@@ -59,13 +59,13 @@ func TestInOut(t *testing.T) {
 			resmu.Lock()
 			isDone := false
 			if len(res) != len(data) {
+				time.Sleep(100 * time.Microsecond)
 				qData, err := q.Out()
 				if err != nil {
 					t.Error(err)
 					return
 				}
 				if qData == nil {
-					time.Sleep(100 * time.Microsecond)
 					resmu.Unlock()
 					continue
 				}

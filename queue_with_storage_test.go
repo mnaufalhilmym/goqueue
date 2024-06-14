@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -67,6 +68,7 @@ func newSimpleStorage() simpleStorage {
 
 func TestInOutWithStorage(t *testing.T) {
 	data := []testData{
+		{"skipped", []byte("test-skipped-at-first")},
 		{"test", []byte("test-data")},
 		{"test1", []byte("test-data1")},
 		{"test2", []byte("test-data2")},
@@ -81,7 +83,7 @@ func TestInOutWithStorage(t *testing.T) {
 		{"test10", []byte("test-data10")},
 		{"test11", []byte("test-data11")},
 		{"test12", []byte("test-data12")},
-		{"skipped", []byte("test-skipped")},
+		{"skipped1", []byte("test-skipped-st-first1")},
 		{"test13", []byte("test-data13")},
 		{"test14", []byte("test-data14")},
 	}
@@ -136,17 +138,18 @@ func TestInOutWithStorage(t *testing.T) {
 	f := func(wg *sync.WaitGroup) {
 		defer wg.Done()
 		x := 0
+		skippedID := []int{}
 		for {
 			resmu.Lock()
 			isDone := false
 			if len(res) != len(data) {
+				time.Sleep(100 * time.Microsecond)
 				qData, err := q.Out()
 				if err != nil {
 					t.Error(err)
 					return
 				}
 				if qData == nil {
-					time.Sleep(100 * time.Microsecond)
 					resmu.Unlock()
 					continue
 				}
@@ -161,11 +164,20 @@ func TestInOutWithStorage(t *testing.T) {
 					x++
 					continue
 				}
-				if data.Kind == "skipped" && x == 0 {
-					qData.Skip()
-					resmu.Unlock()
-					x++
-					continue
+				if strings.HasPrefix(data.Kind, "skipped") {
+					exist := false
+					for _, s := range skippedID {
+						if s == int(qData.Data().ID) {
+							exist = true
+							break
+						}
+					}
+					if !exist {
+						qData.Skip()
+						skippedID = append(skippedID, int(qData.Data().ID))
+						resmu.Unlock()
+						continue
+					}
 				}
 				x = 0
 				res = append(res, data)
@@ -190,13 +202,9 @@ func TestInOutWithStorage(t *testing.T) {
 	go f(wg)
 	wg.Wait()
 
-resloop:
 	for _, r := range res {
 		idx := -1
 		for ii, d := range data {
-			if d.Kind == "skipped" {
-				continue resloop
-			}
 			if d.Kind == r.Kind {
 				idx = ii
 				if r.Kind != d.Kind {

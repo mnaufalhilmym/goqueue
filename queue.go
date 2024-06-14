@@ -31,7 +31,7 @@ func (q *Queue) Out() (data *QueueData, err error) {
 	default:
 		q.mu.Lock()
 		if len(q.q) > 0 {
-			if q.qStartPos < len(q.q)-1 {
+			if q.qStartPos >= len(q.q) {
 				q.qStartPos = 0
 			}
 			return &QueueData{

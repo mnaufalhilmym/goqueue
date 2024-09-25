@@ -11,6 +11,9 @@ type QueueWithStorage struct {
 	s  Storage
 }
 
+// `In` inserts the given `Data` into both the underlying `Storage` and `Queue`.
+// It first stores the `Data` in `Storage`, then assigns the generated ID to the `Data`
+// before adding it to the in-memory `Queue`. Returns an error if insertion fails.
 func (q *QueueWithStorage) In(data Data) (err error) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
@@ -29,6 +32,9 @@ func (q *QueueWithStorage) In(data Data) (err error) {
 	return nil
 }
 
+// `Out` retrieves the next element from the in-memory `Queue` as a `QueueStorageData`.
+// It locks the `Queue`, fetches the next item, and if successful, returns it wrapped
+// in a `QueueStorageData` struct. If no data is available or an `error` occurs, it returns `nil`.
 func (q *QueueWithStorage) Out() (qData *QueueStorageData, err error) {
 	q.mu.Lock()
 
@@ -48,6 +54,9 @@ func (q *QueueWithStorage) Out() (qData *QueueStorageData, err error) {
 	}, nil
 }
 
+// `NewWithStorage` initializes and returns a `QueueWithStorage` and a `context.CancelFunc`.
+// It populates the queue with data retrieved from the provided `Storage`.
+// If data retrieval or insertion fails, it returns an `error` and cancels the context.
 func NewWithStorage(s Storage) (*QueueWithStorage, context.CancelFunc, error) {
 	q, cancel := New()
 

@@ -12,6 +12,8 @@ type Queue struct {
 	ctx       context.Context
 }
 
+// In adds a new Data element to the Queue. If the Queue's context has been canceled,
+// it returns an error; otherwise, it locks the Queue, appends the data, and unlocks it.
 func (q *Queue) In(data Data) (err error) {
 	select {
 	case <-q.ctx.Done():
@@ -24,6 +26,9 @@ func (q *Queue) In(data Data) (err error) {
 	}
 }
 
+// Out retrieves the next element from the Queue as a pointer to QueueData.
+// If the context has been canceled, it returns an error. If the Queue is empty,
+// it returns nil without error.
 func (q *Queue) Out() (data *QueueData, err error) {
 	select {
 	case <-q.ctx.Done():
@@ -56,6 +61,9 @@ func (q *Queue) inMany(qData []Data) error {
 	}
 }
 
+// New initializes and returns a new Queue and a context.CancelFunc.
+// The Queue starts with an empty slice of Data, and a context to manage cancellation.
+// The cancel function can be used to terminate any operations associated with the Queue's context.
 func New() (*Queue, context.CancelFunc) {
 	ctx, cancel := context.WithCancel(context.Background())
 
